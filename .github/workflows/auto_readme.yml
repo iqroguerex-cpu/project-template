@@ -1,0 +1,50 @@
+name: Autonomous README Updater
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'             # Avoid triggering on README-only commits
+      - '.github/workflows/**'  # Avoid triggering on workflow updates
+
+permissions:
+  contents: write               # Allows GitHub Actions to push changes to your repo
+
+jobs:
+  update-readme:
+    # Skip runs initiated by GitHub Actions bot to prevent infinite push loops
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Agent Dependencies
+        run: pip install openai
+
+      - name: Run README Agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python scripts/auto_readme.py
+
+      - name: Commit and Push Updated README
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add README.md
+          if git diff --staged --quiet; then
+            echo "No changes detected in README.md."
+          else
+            git commit -m "docs: auto-update README.md via Autonomous Agent [skip ci]"
+            git push origin main
+          fi
